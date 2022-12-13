@@ -1,0 +1,126 @@
+# Prerequisites for Archive-based installation
+- import_tasks: package-prerequisites.yaml
+
+- name: Install unzip
+  dnf:
+    pkg:
+      - unzip
+    state: installed
+  when:
+    - "'cloudrock/cloudrock-chart.zip' is file"
+    - initial_server | default(false) | bool
+
+# Archive-based installation
+- name: Unarchive Cloudrock Helm chart
+  unarchive:
+    src: cloudrock/cloudrock-chart.zip
+    dest: "."
+  when:
+    - "'cloudrock/cloudrock-chart.zip' is file"
+    - initial_server | default(false) | bool
+
+- name: Rename target Cloudrock Helm direcroty
+  command: mv cloudrock-helm-master cloudrock_helm
+  when:
+    - "'cloudrock/cloudrock-chart.zip' is file"
+    - initial_server | default(false) | bool
+
+# Repo-based installation
+- name: Clone Cloudrock Helm repository
+  git:
+    repo: "{{ cloudrock_helm_repo_url | default('https://github.com/kubeworkz/cloudrock-helm') }}"
+    dest: cloudrock_helm
+    force: yes
+  environment: "{{ proxy_env | default({}) }}"
+  when:
+    - "'cloudrock/cloudrock-chart.zip' is not file"
+    - initial_server | default(false) | bool
+
+- name: Create an empty file for custom Cloudrock values
+  copy:
+    content: ""
+    dest: cloudrock_helm/cloudrock/custom-values.yaml
+    force: yes
+  when:
+    - initial_server | default(false) | bool
+
+- name: Copy custom Cloudrock chart values
+  copy:
+    src: cloudrock/values.yaml
+    dest: cloudrock_helm/cloudrock/custom-values.yaml
+  when:
+    - "'cloudrock/values.yaml' is file"
+    - initial_server | default(false) | bool
+
+- name: Find custom config directories
+  find:
+    paths: cloudrock/
+    file_type: directory
+  delegate_to: localhost
+  become: no
+  register: find_result
+  when: initial_server | default(false) | bool
+
+- name: Print found config directories
+  debug: msg="{{ item.path }}"
+  with_items: "{{ find_result.files }}"
+  when:
+    - initial_server | default(false) | bool
+    - find_result.matched > 0
+
+- name: Copy config directories
+  copy:
+    dest: "./cloudrock_helm/cloudrock/"
+    src: "{{ item.path }}"
+  with_items: "{{ find_result.files }}"
+  when:
+    - initial_server | default(false) | bool
+    - find_result.matched > 0
+
+- import_tasks: create-cloudrock-backup.yaml
+
+- name: Install Cloudrock release
+  kubernetes.core.helm:
+    chart_ref: "./cloudrock_helm/cloudrock/"
+    release_name: cloudrock
+    values_files:
+      - "./cloudrock_helm/cloudrock/values.yaml"
+      - "./cloudrock_helm/cloudrock/custom-values.yaml"
+    values:
+      cloudrock:
+        imageTag: "{{ cloudrock_image_tag | default('latest') }}"
+    state: present
+    namespace: "{{ cloudrock_helm_namespace | default('default') }}"
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+    timeout: 30m0s
+  when:
+    - initial_server | default(false) | bool
+    - not (helm_commands_using_shell | default('false') | bool)
+
+- name: Install Cloudrock release via shell
+  shell: |
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+    helm upgrade --install cloudrock ./cloudrock_helm/cloudrock/ -n "{{ cloudrock_helm_namespace | default('default') }}" -f ./cloudrock_helm/cloudrock/values.yaml -f ./cloudrock_helm/cloudrock/custom-values.yaml --set cloudrock.imageTag={{ cloudrock_image_tag | default('latest') }} --timeout 40m0s
+  environment: "{{ proxy_env | default({}) }}"
+  when:
+    - initial_server | default(false) | bool
+    - helm_commands_using_shell | default('false') | bool
+
+- name: Get release list in the namespace
+  command: helm ls -n "{{ cloudrock_helm_namespace | default('default') }}"
+  run_once: true
+  environment:
+    KUBECONFIG: "/etc/rancher/rke2/rke2.yaml"
+  register: helm_releases
+
+- name: Print release list
+  debug:
+    msg: "{{ helm_releases.stdout }}"
+  run_once: true
+
+- name: Cleanup cloudrock_helm directory
+  file:
+    path: cloudrock_helm
+    state: absent
+  when:
+    - initial_server | default(false) | bool

@@ -1,0 +1,20 @@
+- name: Update Cloudrock release
+  hosts: "{{ host_group | default('rke2_nodes') }}"
+  become: true
+  vars_files:
+    - rke2_vars
+  tasks:
+    - name: Setup Cloudrock
+      import_tasks: task-files/cloudrock-installation.yaml
+
+    - name: Restart deployments to apply configmaps changes
+      shell: |
+        kubectl rollout restart deployment cloudrock-metal-beat
+        kubectl rollout restart deployment cloudrock-metal-api
+        kubectl rollout restart deployment cloudrock-ui
+
+    - name: Restart celery
+      shell: |
+        kubectl rollout restart deployment cloudrock-metal-worker
+      when:
+        - cloudrock_celery_worker_enabled | default(true) | bool

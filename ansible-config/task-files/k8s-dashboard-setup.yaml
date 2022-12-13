@@ -1,0 +1,33 @@
+# Repo-based installation
+- name: Add k8s dashboard repository
+  kubernetes.core.helm_repository:
+    repo_name: kubernetes-dashboard
+    repo_url: https://kubernetes.github.io/dashboard/
+    repo_state: present
+  environment: "{{ proxy_env | default({}) }}"
+  when:
+    - initial_server | default(false) | bool
+
+- name: Install k8s dashboard release
+  kubernetes.core.helm:
+    chart_ref: kubernetes-dashboard/kubernetes-dashboard
+    chart_version: "{{ k8s_dashboard_version }}"
+    release_name: kubernetes-dashboard
+    state: present
+    namespace: kubernetes-dashboard
+    update_repo_cache: true
+    create_namespace: true
+    kubeconfig: /etc/rancher/rke2/rke2.yaml
+  when:
+    - initial_server | default(false) | bool
+    - not (helm_commands_using_shell | default('false') | bool)
+
+- name: Install k8s dashboard release via shell
+  shell: |
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+    kubectl create namespace kubernetes-dashboard || true
+    helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --version "{{ k8s_dashboard_version }}" -n kubernetes-dashboard
+  environment: "{{ proxy_env | default({}) }}"
+  when:
+    - initial_server | default(false) | bool
+    - helm_commands_using_shell | default('false') | bool
