@@ -76,6 +76,12 @@ If you run Cloudrock in a different namespace, please adjust the value of the `-
     ansible-playbook -D -i rke2_inventory add-haproxy-host.yml
     ```
 
+## Cloudrock Helm configuration
+
+A user can override default settings for Cloudrock Helm. The `ansible-config/cloudrock/values.yaml` is the main settings file. Additional configuration features files (e.g. for SAML2, whitelabeling, bootstrapping, etc.) can be included by placing into corresponding subdirectories of `ansible-config/cloudrock/` folder. The paths to the subdirectories should be specified in `ansible-config/cloudrock/values.yaml`, e.g. `cloudrock.saml2.dir` value.
+
+Cloudrock Helm configuration is described in [the public docs](https://docs.cloudrock.ca/admin-guide/deployment/helm/); example `values.yaml` file: [link](https://github.com/kubeworkz/cloudrock-helm/blob/master/cloudrock/values.yaml), example additional files: [link](https://github.com/kubeworkz/cloudrock-helm/tree/master/cloudrock/test).
+
 ## Update of Cloudrock
 
 To update Cloudrock user needs to execute the corresponding playbook:
