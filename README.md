@@ -147,7 +147,7 @@ Same works for Celery worker:
 kubectl logs --tail 100 -l app=cloudrock-metal-worker -n default
 ```
 
-**Note: if you use a non-default namespace for a Cloudrock release, please change the value for `-n` option in the aforementioned**
+**Note: if you use a non-default namespace for a Cloudrock release, please change the value for `-n` option in the aforementioned command**
 
 ## Update SSL certificates
 
