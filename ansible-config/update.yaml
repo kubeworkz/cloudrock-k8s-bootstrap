@@ -6,15 +6,21 @@
   tasks:
     - name: Setup Cloudrock
       import_tasks: task-files/cloudrock-installation.yaml
-
     - name: Restart deployments to apply configmaps changes
       shell: |
         kubectl rollout restart deployment cloudrock-metal-beat
         kubectl rollout restart deployment cloudrock-metal-api
-        kubectl rollout restart deployment cloudrock-ui
+        kubectl rollout restart deployment cloudrock-cloudrock-ui
+      environment:
+        KUBECONFIG: "/etc/rancher/rke2/rke2.yaml"
+      when:
+        - initial_server | default(false) | bool
 
     - name: Restart celery
       shell: |
         kubectl rollout restart deployment cloudrock-metal-worker
+      environment:
+        KUBECONFIG: "/etc/rancher/rke2/rke2.yaml"
       when:
         - cloudrock_celery_worker_enabled | default(true) | bool
+        - initial_server | default(false) | bool
