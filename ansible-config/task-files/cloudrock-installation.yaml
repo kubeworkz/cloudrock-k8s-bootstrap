@@ -8,7 +8,6 @@
     state: installed
   when:
     - "'cloudrock/cloudrock-chart.zip' is file"
-    - initial_server | default(false) | bool
 
 # Archive-based installation
 - name: Unarchive Cloudrock Helm chart
@@ -23,7 +22,6 @@
   command: mv cloudrock-helm-master cloudrock_helm
   when:
     - "'cloudrock/cloudrock-chart.zip' is file"
-    - initial_server | default(false) | bool
 
 # Repo-based installation
 - name: Clone Cloudrock Helm repository
@@ -34,15 +32,12 @@
   environment: "{{ proxy_env | default({}) }}"
   when:
     - "'cloudrock/cloudrock-chart.zip' is not file"
-    - initial_server | default(false) | bool
 
 - name: Create an empty file for custom Cloudrock values
   copy:
     content: ""
     dest: cloudrock_helm/cloudrock/custom-values.yaml
     force: yes
-  when:
-    - initial_server | default(false) | bool
 
 - name: Copy custom Cloudrock chart values
   copy:
@@ -50,7 +45,18 @@
     dest: cloudrock_helm/cloudrock/custom-values.yaml
   when:
     - "'cloudrock/values.yaml' is file"
-    - initial_server | default(false) | bool
+
+- name: Add proxy env in custom values file
+  blockinfile:
+    path: cloudrock_helm/cloudrock/custom-values.yaml
+    state: present
+    block: |
+      proxy:
+        httpsProxy: {{ proxy_env['https_proxy'] | default('') }}
+        httpProxy: {{ proxy_env['http_proxy'] | default('') }}
+        noProxy: {{ proxy_env['no_proxy'] | default('') }}
+  when:
+    - proxy_env is defined
 
 - name: Find custom config directories
   find:
@@ -59,13 +65,11 @@
   delegate_to: localhost
   become: no
   register: find_result
-  when: initial_server | default(false) | bool
 
 - name: Print found config directories
   debug: msg="{{ item.path }}"
   with_items: "{{ find_result.files }}"
   when:
-    - initial_server | default(false) | bool
     - find_result.matched > 0
 
 - name: Copy config directories
@@ -74,7 +78,6 @@
     src: "{{ item.path }}"
   with_items: "{{ find_result.files }}"
   when:
-    - initial_server | default(false) | bool
     - find_result.matched > 0
 
 - import_tasks: create-cloudrock-backup.yaml
@@ -94,7 +97,6 @@
     kubeconfig: /etc/rancher/rke2/rke2.yaml
     timeout: 30m0s
   when:
-    - initial_server | default(false) | bool
     - not (helm_commands_using_shell | default('false') | bool)
 
 - name: Install Cloudrock release via shell
@@ -103,7 +105,6 @@
     helm upgrade --install cloudrock ./cloudrock_helm/cloudrock/ -n "{{ cloudrock_helm_namespace | default('default') }}" -f ./cloudrock_helm/cloudrock/values.yaml -f ./cloudrock_helm/cloudrock/custom-values.yaml --set cloudrock.imageTag={{ cloudrock_image_tag | default('latest') }} --timeout 40m0s
   environment: "{{ proxy_env | default({}) }}"
   when:
-    - initial_server | default(false) | bool
     - helm_commands_using_shell | default('false') | bool
 
 - name: Get release list in the namespace
@@ -122,5 +123,3 @@
   file:
     path: cloudrock_helm
     state: absent
-  when:
-    - initial_server | default(false) | bool
